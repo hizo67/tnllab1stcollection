@@ -1,8 +1,8 @@
-import * as THREE from 'https://esm.sh/three@0.160.1';
+import * as THREE from 'three';
 import { MindARThree } from 'https://esm.sh/mind-ar@1.2.5/dist/mindar-image-three.prod.js?external=three';
 
 const $=id=>document.getElementById(id);
-const cover=$('cover'),hud=$('hud'),status=$('status'),reticle=$('reticle'),rec=$('record');
+const hud=$('hud'),status=$('status'),reticle=$('reticle'),rec=$('record');
 let mind,anchor,renderer,scene,camera,video,texture,material,mesh,started=false,tracking=false,recorder,parts=[],composite,ctx,recordStream,raf,recording=false,lastBlobUrl=null;
 const posterRatio=1448/2048;
 function toast(message){const e=$('toast');e.textContent=message;e.style.display='block';setTimeout(()=>e.style.display='none',4200)}
@@ -10,7 +10,7 @@ function makeVideo(){video=document.createElement('video');video.src='assets/ani
 async function startAR(){
  if(started)return;
  if(!navigator.mediaDevices?.getUserMedia){toast('Cần mở website qua HTTPS hoặc localhost.');return;}
- $('start').disabled=true;$('start').textContent='ĐANG KHỞI ĐỘNG…';
+ $('start').disabled=true;$('start').textContent='ĐANG MỞ CAMERA…';
  try{
   makeVideo();
   mind=new MindARThree({container:$('ar'),imageTargetSrc:'assets/targets.mind',maxTrack:1,filterMinCF:0.001,filterBeta:0.03,uiScanning:'no',uiLoading:'no',uiError:'no'});
@@ -31,10 +31,12 @@ async function startAR(){
   anchor.onTargetLost=()=>{tracking=false;status.textContent='ĐANG TÌM POSTER…';reticle.style.display='block';video.pause();};
   await mind.start();
   renderer.setAnimationLoop(()=>renderer.render(scene,camera));
-  started=true;cover.hidden=true;hud.hidden=false;
- }catch(e){console.error(e);toast('Không khởi động được AR. Kiểm tra quyền camera và file targets.mind.');$('start').disabled=false;$('start').textContent='THỬ LẠI';}
+  started=true;$('permission').hidden=true;rec.disabled=false;
+ }catch(e){console.error(e);toast('Không khởi động được AR. Kiểm tra quyền camera và file targets.mind.');$('permission').hidden=false;$('start').disabled=false;$('start').textContent='THỬ LẠI';}
 }
 $('start').addEventListener('click',startAR);
+window.showStartupError=(msg)=>{$('permission').hidden=false;$('start').disabled=false;$('start').textContent='THỬ LẠI';$('permission-note').textContent=msg};
+window.addEventListener('load',()=>{startAR();});
 window.addEventListener('pointerdown',()=>{if(tracking&&video?.paused)video.play().catch(()=>{});},{passive:true});
 
 // Composite camera + WebGL into one canvas. Browser camera video may be mirrored/cropped by its CSS.
@@ -65,9 +67,9 @@ async function beginRecording(){
  try{recorder=new MediaRecorder(recordStream,{mimeType:mime,videoBitsPerSecond:3500000});}catch(e){toast('Không thể khởi tạo trình ghi video.');recordStream.getTracks().forEach(t=>t.stop());return;}
  recorder.ondataavailable=e=>{if(e.data.size)parts.push(e.data)};
  recorder.onstop=()=>{cancelAnimationFrame(raf);recordStream.getTracks().forEach(t=>t.stop());const blob=new Blob(parts,{type:mime});if(lastBlobUrl)URL.revokeObjectURL(lastBlobUrl);lastBlobUrl=URL.createObjectURL(blob);$('preview').src=lastBlobUrl;$('save').href=lastBlobUrl;$('save').download='the-1st-collection-ar.'+(mime.includes('mp4')?'mp4':'webm');$('save-note').textContent=mime.includes('webm')?'Nếu iPhone không lưu được WebM trực tiếp, dùng Chia sẻ → Lưu vào Tệp hoặc chuyển sang MP4.':'';$('result').hidden=false;};
- recording=true;renderComposite();recorder.start(1000);rec.classList.add('active');$('rec-label').textContent='ĐANG QUAY • NHẤN ĐỂ DỪNG';
+ recording=true;renderComposite();recorder.start(1000);rec.classList.add('active');$('rec-label').textContent='Đang quay';
 }
-function stopRecording(){if(!recording)return;recording=false;rec.classList.remove('active');$('rec-label').textContent='NHẤN ĐỂ QUAY AR';if(recorder?.state!=='inactive')recorder.stop();}
+function stopRecording(){if(!recording)return;recording=false;rec.classList.remove('active');$('rec-label').textContent='';if(recorder?.state!=='inactive')recorder.stop();}
 rec.addEventListener('click',()=>recording?stopRecording():beginRecording());
 $('close').addEventListener('click',()=>{$('preview').pause();$('result').hidden=true;});
 // Camera sau cố định để đảm bảo tracking; không hiển thị nút đổi camera không hoạt động.
